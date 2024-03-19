@@ -15,7 +15,7 @@ class ManageIQ::Providers::EmbeddedTerraform::AutomationManager::ConfigurationSc
       templates.each do |template_path, value|
         _log.info("Template: #{template_path} => #{value.to_json}")
 
-        found = current.delete(template_path) || self.class.module_parent::ConfigurationScriptPayload.new(:configuration_script_source_id => id)
+        found = current.delete(template_path) || self.class.module_parent::Template.new(:configuration_script_source_id => id)
 
         attrs = {
           :name         => template_path,
