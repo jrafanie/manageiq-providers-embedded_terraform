@@ -1,0 +1,9 @@
+{
+    "stack_id": "72259c10-e84c-11ee-a474-2d77bed8e73a",
+    "stack_job_id": 11,
+    "stack_job_is_latest": true,
+    "action": "CREATE",
+    "status": "IN_PROGRESS",
+    "stack_name": "test-hello-world",
+    "tenantId": "c158d710-d91c-11ed-9fee-d93323035b4e"
+}
