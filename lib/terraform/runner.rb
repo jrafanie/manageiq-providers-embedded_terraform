@@ -7,6 +7,15 @@ require 'base64'
 module Terraform
   class Runner
     class << self
+      def server_url
+        ENV['TERRAFORM_RUNNER_URL'] || 'https://localhost:27000'
+      end
+
+      def server_token
+        # TODO: fix hardcoded token
+        ENV['TERRAFORM_RUNNER_TOKEN'] || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlNodWJoYW5naSBTaW5naCIsImlhdCI6MTcwNjAwMDk0M30.46mL8RRxfHI4yveZ2wTsHyF7s2BAiU84aruHBoz2JRQ'
+      end
+
       # Run a template, initiate stack creation (does wait to complete), via terraform-runner api
       #
       # @param input_vars [Hash] Hash with key/value pairs that will be passed as input variables to the
@@ -51,16 +60,23 @@ module Terraform
       end
 
       def terraform_runner_client
-        # TODO: fix hardcoded values
-        server_url = ENV['TERRAFORM_RUNNER_URL'] || 'https://localhost:27000'
-        token = ENV['TERRAFORM_RUNNER_TOKEN'] || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlNodWJoYW5naSBTaW5naCIsImlhdCI6MTcwNjAwMDk0M30.46mL8RRxfHI4yveZ2wTsHyF7s2BAiU84aruHBoz2JRQ'
+        # TODO: verify ssl
         verify_ssl = false
 
         RestClient::Resource.new(
           server_url,
-          :headers    => {:authorization => "Bearer #{token}"},
+          :headers    => {:authorization => "Bearer #{server_token}"},
           :verify_ssl => verify_ssl
         )
+      end
+
+      def available?
+        return @available if defined?(@available)
+
+        response = terraform_runner_client['api/terraformjobs/count'].get
+        @available = response.code == 200
+      rescue
+        @available = false
       end
 
       # Run a template, initiate stack creation (does wait to complete), via terraform-runner api
