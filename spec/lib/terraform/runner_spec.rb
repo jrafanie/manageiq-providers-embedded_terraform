@@ -48,4 +48,50 @@ RSpec.describe(Terraform::Runner) do
       expect(response.details.keys).to(eq(%w[resources outputs]))
     end
   end
+
+  describe ".run_async" do
+    let(:input_vars) { {} }
+
+    let(:create_response) { JSON.parse(File.read(File.join(__dir__, "runner/data/responses/hello-world-create-success.json"))) }
+    let(:retrieve_response) { JSON.parse(File.read(File.join(__dir__, "runner/data/responses/hello-world-retrieve-success.json"))) }
+
+    before do
+      ENV["TERRAFORM_RUNNER_URL"] = "https://1.2.3.4:7000"
+
+      stub_request(:post, "https://1.2.3.4:7000/api/stack/create")
+        .to_return(
+          :status => 200,
+          :body   => create_response.to_json
+        )
+
+      stub_request(:post, "https://1.2.3.4:7000/api/stack/retrieve")
+        .to_return(
+          :status => 200,
+          :body   => retrieve_response.to_json
+        )
+    end
+
+    it "initiates running of hello-world terraform template" do
+      async_response = Terraform::Runner.run_async(input_vars, File.join(__dir__, "runner/data/hello-world"))
+      response = async_response.response
+
+      expect(response.status).to(eq('IN_PROGRESS'), "terraform-runner failed with:\n#{response.status}")
+      expect(response.stack_id).to(eq(create_response['stack_id']))
+      expect(response.action).to(eq('CREATE'))
+      expect(response.stack_name).to(eq(create_response['stack_name']))
+      expect(response.message).to(be_nil)
+      expect(response.details).to(be_nil)
+    end
+
+    it "retrieve result run_async job" do
+      response = Terraform::Runner.fetch_result_by_stack_id(create_response['stack_id'])
+
+      expect(response.status).to(eq('SUCCESS'), "terraform-runner failed with:\n#{response.status}")
+      expect(response.message).to(include('greeting = "Hello World"'))
+      expect(response.stack_id).to(eq(retrieve_response['stack_id']))
+      expect(response.action).to(eq('CREATE'))
+      expect(response.stack_name).to(eq(retrieve_response['stack_name']))
+      expect(response.details.keys).to(eq(%w[resources outputs]))
+    end
+  end
 end
