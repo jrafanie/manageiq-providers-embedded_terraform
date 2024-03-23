@@ -7,6 +7,15 @@ require 'base64'
 module Terraform
   class Runner
     class << self
+      def available?
+        return @available if defined?(@available)
+
+        response = terraform_runner_client['api/terraformjobs/count'].get
+        @available = response.code == 200
+      rescue
+        @available = false
+      end
+
       # Run a template, initiates terraform-runner job for running a template, via terraform-runner api
       #
       # @param input_vars [Hash] Hash with key/value pairs that will be passed as input variables to the
@@ -26,7 +35,16 @@ module Terraform
           :credentials => credentials,
           :env_vars    => env_vars
         )
-        Terraform::Runner::ResponseAsync.new(response)
+        Terraform::Runner::ResponseAsync.new(response.stack_id)
+      end
+
+      # Stop running terraform-runner job by stack_id
+      #
+      # @param stack_id [String] stack_id from the terraforn-runner job
+      #
+      # @return [Terraform::Runner::Response] Response object with result of terraform run
+      def stop_async(stack_id)
+        cancel_stack_job(stack_id)
       end
 
       # Runs a template, waits until it terraform-runner job completes, via terraform-runner api
@@ -59,33 +77,6 @@ module Terraform
         retrieve_stack_job(stack_id)
       end
 
-      def available?
-        return @available if defined?(@available)
-
-        response = terraform_runner_client['api/terraformjobs/count'].get
-        @available = response.code == 200
-      rescue
-        @available = false
-      end
-
-      # Run a template, initiate stack creation (does wait to complete), via terraform-runner api
-      #
-      # @param vars [Hash] Hash with key/value pairs that will be passed as input variables to the
-      #        terraform-runner run
-      # @return [Array] Array of {:name,:value}
-      def convert_to_cam_parameters(vars)
-        parameters = []
-        vars.each do |key, value|
-          parameters.push(
-            {
-              :name  => key,
-              :value => value
-            }
-          )
-        end
-      end
-
-
       # =================================================
       # TerraformRunner Stack-API interaction methods
       # =================================================
@@ -110,6 +101,23 @@ module Terraform
         ENV['TERRAFORM_RUNNER_STACK_JOB_MAX_TIME'].to_i
       rescue
         120
+      end
+
+      # Create to paramaters as used by terraform-runner api
+      #
+      # @param vars [Hash] Hash with key/value pairs that will be passed as input variables to the
+      #        terraform-runner run
+      # @return [Array] Array of {:name,:value}
+      def convert_to_cam_parameters(vars)
+        parameters = []
+        vars.each do |key, value|
+          parameters.push(
+            {
+              :name  => key,
+              :value => value
+            }
+          )
+        end
       end
 
       # create http client for terraform-runner rest-api
@@ -179,7 +187,21 @@ module Terraform
         http_response = terraform_runner_client['api/stack/retrieve'].post(
           payload, :content_type => 'application/json'
         )
-        _log.info("==== http_response.body: \n #{http_response.body}")
+        _log.info("==== Retrieve Stack Response: \n #{http_response.body}")
+        Terraform::Runner::Response.parsed_response(http_response)
+      end
+
+      # Cancel/Stop running TerraformRunner Stack Job
+      def cancel_stack_job(stack_id)
+        payload = JSON.generate(
+          {
+            :stack_id => stack_id
+          }
+        )
+        http_response = terraform_runner_client['api/stack/cancel'].post(
+          payload, :content_type => 'application/json'
+        )
+        _log.info("==== Cancel Stack Response: \n #{http_response.body}")
         Terraform::Runner::Response.parsed_response(http_response)
       end
 
