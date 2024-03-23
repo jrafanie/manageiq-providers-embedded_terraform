@@ -154,7 +154,7 @@ RSpec.describe(Terraform::Runner) do
 
       let(:input_vars) { {} }
 
-      it "start running hello-world terraform template" do
+      it "start running, then stop the before it completes" do
         async_response = Terraform::Runner.run_async(input_vars, File.join(__dir__, "runner/data/hello-world"))
         response = async_response.response
 
@@ -170,8 +170,9 @@ RSpec.describe(Terraform::Runner) do
 
         # Stop the job terraform-runner
         async_response.stop
+        expect(cancel_stub).to(have_been_requested.times(1))
 
-        # fet
+        # Re-fetch latest response
         async_response.refresh_response
         response = async_response.response
 
