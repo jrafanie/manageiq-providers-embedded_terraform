@@ -139,32 +139,25 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
       end
     end
 
-    describe "#templates_in_git_repository" do
+    describe "create_in_provider runs sync" do
       it "finds top level template" do
         record = build_record
 
-        expect(templates_for(record)).to(eq(["hello_world_local(master):#{local_repo}/"]))
-      end
+        names_and_payloads = record.configuration_script_payloads.pluck(:name, :payload)
 
-      it "saves the template payload" do
-        record = build_record
+        names = names_and_payloads.collect(&:first)
+        payloads = names_and_payloads.collect(&:second)
 
-        payload = {
-          :relative_path => '.',
-          :files         => ['hello_world.tf'],
-          :input_vars    => nil,
-          :output_vars   => nil
+        expect(names.first).to(eq("hello_world_local(master):#{local_repo}/"))
+
+        expected_hash = {
+          "relative_path" => File.dirname(*repo_dir_structure),
+          "files"         => [File.basename(*repo_dir_structure)],
+          "input_vars"    => nil,
+          "output_vars"   => nil
         }
 
-        name = described_class.template_name_from_git_repo_url(local_repo, 'master', '.')
-
-        expect(record.configuration_script_payloads.first).to(
-          have_attributes(
-            :name         => name,
-            :payload      => payload.to_json,
-            :payload_type => "json"
-          )
-        )
+        expect(payloads.first).to eq(expected_hash.to_json)
       end
 
       context "with a nested templates dir" do
@@ -182,7 +175,37 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
           params[:scm_url] = "file://#{nested_repo}"
           record           = build_record
 
-          expect(templates_for(record)).to eq(["hello-world(master):#{nested_repo}/templates"])
+          names_and_payloads = record.configuration_script_payloads.pluck(:name, :payload)
+
+          names = names_and_payloads.collect(&:first)
+          payloads = names_and_payloads.collect(&:second)
+
+          expect(names.first).to(eq("hello-world(master):#{nested_repo}/templates"))
+
+          expected_hash = {
+            "relative_path" => File.dirname(*nested_repo_structure),
+            "files"         => [File.basename(*nested_repo_structure)],
+            "input_vars"    => nil,
+            "output_vars"   => nil
+          }
+
+          expect(payloads.first).to eq(expected_hash.to_json)
+        end
+
+        it "deletes existing records" do
+          # build using the first fake repo
+          record           = build_record
+          existing_id     = record.configuration_script_payloads.first.id
+
+          # create a new fake repo and associate it with our repo
+          FakeTerraformRepo.generate(nested_repo, nested_repo_structure)
+          record.update(:scm_url => "file://#{nested_repo}")
+          record.sync
+
+          # verify the original payload is removed
+          new_ids     = record.configuration_script_payloads.pluck(:id)
+          expect(new_ids).to be_present
+          expect(new_ids).to_not include(existing_id)
         end
       end
 
@@ -202,7 +225,12 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
           params[:scm_url] = "file://#{multiple_templates_repo}"
           record           = build_record
 
-          expect(templates_for(record)).to(
+          names_and_payloads = record.configuration_script_payloads.pluck(:name, :payload)
+
+          names = names_and_payloads.collect(&:first)
+          payloads = names_and_payloads.collect(&:second)
+
+          expect(names).to(
             eq(
               [
                 "hello-world(master):#{multiple_templates_repo}/templates",
@@ -230,6 +258,20 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
       end
     end
 
+    describe "#template_name_from_git_repo_url" do
+      let(:git_url_branch_path)   { ["git@example.com:manoj-puthran/sample-scripts.git", "v2.0", "terraform/templates/hello-world"]}
+      let(:https_url_branch_path) { ["https://example.com/manoj-puthran/sample-scripts.git", "v2.0", "terraform/templates/hello-world"]}
+      let(:expected_result)       { "hello-world(v2.0):example.com/manoj-puthran/sample-scripts/terraform/templates" }
+
+      it "supports https urls" do
+        expect(described_class.template_name_from_git_repo_url(*https_url_branch_path)).to eq(expected_result)
+      end
+
+      it "converts git urls" do
+        expect(described_class.template_name_from_git_repo_url(*git_url_branch_path)).to eq(expected_result)
+      end
+    end
+
     describe "#update_in_provider" do
       let(:update_params) { {:scm_branch => "other_branch"} }
 
@@ -244,11 +286,21 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
           git_repo_dir = repo_dir.join(result.git_repository.id.to_s)
           expect(files_in_repository(git_repo_dir)).to eq ["hello_world.tf"]
 
-          expect(templates_for(record)).to eq(
-            [
-              "hello_world_local(other_branch):#{local_repo}/"
-            ]
-          )
+          names_and_payloads = record.configuration_script_payloads.pluck(:name, :payload)
+
+          names = names_and_payloads.collect(&:first)
+          payloads = names_and_payloads.collect(&:second)
+
+          expect(names.first).to(eq("hello_world_local(other_branch):#{local_repo}/"))
+
+          expected_hash = {
+            "relative_path" => File.dirname(*repo_dir_structure),
+            "files"         => [File.basename(*repo_dir_structure)],
+            "input_vars"    => nil,
+            "output_vars"   => nil
+          }
+
+          expect(payloads.first).to eq(expected_hash.to_json)
         end
       end
 
@@ -354,10 +406,6 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
           )
         )
       end
-    end
-
-    def templates_for(repo)
-      repo.configuration_script_payloads.pluck(:name)
     end
 
     def build_record
