@@ -110,7 +110,7 @@ module Terraform
       # @return [Array] Array of {:name,:value}
       def convert_to_cam_parameters(vars)
         parameters = []
-        vars.each do |key, value|
+        vars&.each do |key, value|
           parameters.push(
             {
               :name  => key,
@@ -118,6 +118,7 @@ module Terraform
             }
           )
         end
+        parameters
       end
 
       # create http client for terraform-runner rest-api
