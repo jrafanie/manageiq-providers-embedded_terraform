@@ -34,6 +34,7 @@ RSpec.describe(Terraform::Runner) do
         )
 
       stub_request(:post, "https://1.2.3.4:7000/api/stack/retrieve")
+        .with(:body => hash_including({:stack_id => @hello_world_retrieve_response['stack_id']}))
         .to_return(
           :status => 200,
           :body   => @hello_world_retrieve_response.to_json
@@ -58,11 +59,16 @@ RSpec.describe(Terraform::Runner) do
     def verify_request_and_respond(request)
       body = JSON.parse(request.body)
 
-      # verify
+      # verify parameters
       expect(body['parameters'].length).to(eq(1))
       data = body['parameters'][0]
       expect(data['name']).to(eq('name'))
       expect(data['value']).to(eq('Mumbai'))
+
+      # verify other attributes
+      expect(body['name']).not_to(be_empty)
+      expect(body['tenantId']).not_to(be_empty)
+      expect(body['templateZipFile']).not_to(be_empty)
 
       @hello_world_create_response.to_json
     end
@@ -78,6 +84,7 @@ RSpec.describe(Terraform::Runner) do
       response['details']['outputs'][0]['value'] = response['details']['outputs'][0]['value'].sub('World', 'Mumbai')
 
       stub_request(:post, "https://1.2.3.4:7000/api/stack/retrieve")
+        .with(:body => hash_including({:stack_id => @hello_world_retrieve_response['stack_id']}))
         .to_return(
           :status => 200,
           :body   => response.to_json
@@ -105,12 +112,14 @@ RSpec.describe(Terraform::Runner) do
         ENV["TERRAFORM_RUNNER_URL"] = "https://1.2.3.4:7000"
 
         create_stub = stub_request(:post, "https://1.2.3.4:7000/api/stack/create")
+                      .with(:body => hash_including({:parameters => []}))
                       .to_return(
                         :status => 200,
                         :body   => @hello_world_create_response.to_json
                       )
 
         retrieve_stub = stub_request(:post, "https://1.2.3.4:7000/api/stack/retrieve")
+                        .with(:body => hash_including({:stack_id => @hello_world_retrieve_response['stack_id']}))
                         .to_return(
                           :status => 200,
                           :body   => @hello_world_create_response.to_json
@@ -142,6 +151,7 @@ RSpec.describe(Terraform::Runner) do
         ENV["TERRAFORM_RUNNER_URL"] = "https://1.2.3.4:7000"
 
         retrieve_stub = stub_request(:post, "https://1.2.3.4:7000/api/stack/retrieve")
+                        .with(:body => hash_including({:stack_id => @hello_world_retrieve_response['stack_id']}))
                         .to_return(
                           :status => 200,
                           :body   => @hello_world_retrieve_response.to_json
@@ -172,6 +182,7 @@ RSpec.describe(Terraform::Runner) do
         ENV["TERRAFORM_RUNNER_URL"] = "https://1.2.3.4:7000"
 
         create_stub = stub_request(:post, "https://1.2.3.4:7000/api/stack/create")
+                      .with(:body => hash_including({:parameters => []}))
                       .to_return(
                         :status => 200,
                         :body   => @hello_world_create_response.to_json
@@ -181,6 +192,7 @@ RSpec.describe(Terraform::Runner) do
         cancel_response[:status] = 'CANCELLED'
 
         retrieve_stub = stub_request(:post, "https://1.2.3.4:7000/api/stack/retrieve")
+                        .with(:body => hash_including({:stack_id => @hello_world_retrieve_response['stack_id']}))
                         .to_return(
                           :status => 200,
                           :body   => @hello_world_create_response.to_json
@@ -191,6 +203,7 @@ RSpec.describe(Terraform::Runner) do
                           :body   => cancel_response.to_json
                         )
         cancel_stub = stub_request(:post, "https://1.2.3.4:7000/api/stack/cancel")
+                      .with(:body => hash_including({:stack_id => @hello_world_retrieve_response['stack_id']}))
                       .to_return(
                         :status => 200,
                         :body   => cancel_response.to_json
