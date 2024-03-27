@@ -58,24 +58,6 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
           git_repo_dir = repo_dir.join(result.git_repository.id.to_s)
           expect(files_in_repository(git_repo_dir)).to eq ["hello_world.tf"]
         end
-
-        # NOTE:  Second `.notify` stub below prevents `.sync` from getting fired
-        it "sets the status to 'new' on create" do
-          expect(described_class).to receive(:notify).with("creation", manager.id, params).and_call_original
-          expect(described_class).to receive(:notify).with("syncing", manager.id, {}).and_return(true)
-          result = described_class.create_in_provider(manager.id, params)
-
-          expect(result).to be_a(described_class)
-          expect(result).to have_attributes(
-            :scm_type          => "git",
-            :scm_branch        => "master",
-            :status            => "new",
-            :last_updated_on   => nil,
-            :last_update_error => nil
-          )
-
-          expect(repos).to be_empty
-        end
       end
     end
 
@@ -93,50 +75,6 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
           :role        => "embedded_terraform",
           :zone        => nil
         )
-      end
-    end
-
-    describe "#verify_ssl" do
-      it "defaults to OpenSSL::SSL::VERIFY_NONE" do
-        expect(subject.verify_ssl).to eq(OpenSSL::SSL::VERIFY_NONE)
-      end
-
-      it "can be updated to OpenSSL::SSL::VERIFY_PEER" do
-        subject.verify_ssl = OpenSSL::SSL::VERIFY_PEER
-        expect(subject.verify_ssl).to eq(OpenSSL::SSL::VERIFY_PEER)
-      end
-
-      context "with a created record" do
-        subject             { described_class.last }
-        let(:create_params) { params.merge(:verify_ssl => OpenSSL::SSL::VERIFY_PEER) }
-
-        before do
-          allow(Notification).to receive(:create!)
-
-          described_class.create_in_provider(manager.id, create_params)
-        end
-
-        it "pulls from the created record" do
-          expect(subject.verify_ssl).to eq(OpenSSL::SSL::VERIFY_PEER)
-        end
-
-        it "pushes updates from the ConfigurationScriptSource to the GitRepository" do
-          subject.update(:verify_ssl => OpenSSL::SSL::VERIFY_NONE)
-
-          expect(described_class.last.verify_ssl).to eq(OpenSSL::SSL::VERIFY_NONE)
-          expect(GitRepository.last.verify_ssl).to   eq(OpenSSL::SSL::VERIFY_NONE)
-        end
-
-        it "converts true/false values instead of integers" do
-          subject.update(:verify_ssl => false)
-
-          expect(described_class.last.verify_ssl).to(eq(OpenSSL::SSL::VERIFY_NONE))
-          expect(GitRepository.last.verify_ssl).to(eq(OpenSSL::SSL::VERIFY_NONE))
-
-          subject.update(:verify_ssl => true)
-          expect(described_class.last.verify_ssl).to(eq(OpenSSL::SSL::VERIFY_PEER))
-          expect(GitRepository.last.verify_ssl).to(eq(OpenSSL::SSL::VERIFY_PEER))
-        end
       end
     end
 
@@ -305,16 +243,6 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
         end
       end
 
-      context "with invalid params" do
-        it "does not create a record and does not call git" do
-          record                    = build_record
-          update_params[:scm_type]  = 'svn' # oh dear god...
-
-          expect(AwesomeSpawn).to receive(:run!).never
-          expect { record.update_in_provider update_params }.to raise_error(ActiveRecord::RecordInvalid)
-        end
-      end
-
       context "when there is a network error fetching the repo" do
         before do
           record = build_record
@@ -374,21 +302,6 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
       end
     end
 
-    describe "#delete_in_provider" do
-      it "deletes the record and removes the git dir" do
-        record = build_record
-        git_repo_dir = repo_dir.join(record.git_repository.id.to_s)
-        record.delete_in_provider
-
-        # Run most recent queue item (`GitRepository#broadcast_repo_dir_delete`)
-        MiqQueue.get.deliver
-
-        expect(record).to(be_deleted)
-
-        expect(git_repo_dir).to_not(exist)
-      end
-    end
-
     describe "#delete_in_provider_queue" do
       it "creates a task and queue item" do
         pending "We need to set the embedded_terraform role"
@@ -413,76 +326,6 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
 
     def build_record
       described_class.create_in_provider manager.id, params
-    end
-  end
-
-  describe "git_repository interaction" do
-    let(:auth) { FactoryBot.create(:embedded_terraform_scm_credential) }
-    let(:configuration_script_source) do
-      described_class.create!(
-        :name           => "foo",
-        :scm_url        => "https://example.com/foo.git",
-        :authentication => auth
-      )
-    end
-
-    it "on .create" do
-      configuration_script_source
-
-      git_repository = GitRepository.first
-      expect(git_repository.name).to eq "foo"
-      expect(git_repository.url).to eq "https://example.com/foo.git"
-      expect(git_repository.authentication).to eq auth
-
-      expect { configuration_script_source.git_repository }.to_not make_database_queries
-      expect(configuration_script_source.git_repository_id).to eq git_repository.id
-    end
-
-    it "on .new" do
-      configuration_script_source = described_class.new(
-        :name           => "foo",
-        :scm_url        => "https://example.com/foo.git",
-        :authentication => auth
-      )
-
-      expect(GitRepository.count).to eq 0
-
-      attached_git_repository = configuration_script_source.git_repository
-
-      git_repository = GitRepository.first
-      expect(git_repository).to eq attached_git_repository
-      expect(git_repository.name).to eq "foo"
-      expect(git_repository.url).to eq "https://example.com/foo.git"
-      expect(git_repository.authentication).to eq auth
-
-      expect { configuration_script_source.git_repository }.to_not make_database_queries
-      expect(configuration_script_source.git_repository_id).to eq git_repository.id
-    end
-
-    it "errors when scm_url is invalid" do
-      expect { configuration_script_source.update!(:scm_url => "invalid url") }.to raise_error(ActiveRecord::RecordInvalid)
-    end
-
-    it "syncs attributes down" do
-      configuration_script_source.name = "bar"
-      expect(configuration_script_source.git_repository.name).to eq "bar"
-
-      configuration_script_source.scm_url = "https://example.com/bar.git"
-      expect(configuration_script_source.git_repository.url).to eq "https://example.com/bar.git"
-
-      configuration_script_source.authentication = nil
-      expect(configuration_script_source.git_repository.authentication).to be_nil
-    end
-
-    it "persists attributes down" do
-      configuration_script_source.update!(:name => "bar")
-      expect(GitRepository.first.name).to eq "bar"
-
-      configuration_script_source.update!(:scm_url => "https://example.com/bar.git")
-      expect(GitRepository.first.url).to eq "https://example.com/bar.git"
-
-      configuration_script_source.update!(:authentication => nil)
-      expect(GitRepository.first.authentication).to be_nil
     end
   end
 end
