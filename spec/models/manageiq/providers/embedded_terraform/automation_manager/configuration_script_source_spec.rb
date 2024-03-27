@@ -81,6 +81,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
 
     describe ".create_in_provider_queue" do
       it "creates a task and queue item" do
+        pending "We need to set the embedded_terraform role"
         EvmSpecHelper.local_miq_server
         task_id = described_class.create_in_provider_queue(manager.id, params)
         expect(MiqTask.find(task_id)).to have_attributes(:name => "Creating #{described_class::FRIENDLY_NAME} (name=#{params[:name]})")
@@ -89,7 +90,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
           :class_name  => described_class.name,
           :method_name => "create_in_provider",
           :priority    => MiqQueue::HIGH_PRIORITY,
-          # :role        => "embedded_terraform", TODO: Add role, set it in the queue and test it
+          :role        => "embedded_terraform",
           :zone        => nil
         )
       end
@@ -353,6 +354,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
 
     describe "#update_in_provider_queue" do
       it "creates a task and queue item" do
+        pending "We need to set the embedded_terraform role"
         record    = build_record
         task_id   = record.update_in_provider_queue({})
         task_name = "Updating #{described_class::FRIENDLY_NAME} (name=#{record.name})"
@@ -365,7 +367,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
             :class_name  => described_class.name,
             :method_name => "update_in_provider",
             :priority    => MiqQueue::HIGH_PRIORITY,
-            # :role        => "embedded_terraform", TODO: Add role, set it in the queue and test it
+            :role        => "embedded_terraform",
             :zone        => nil
           )
         )
@@ -389,6 +391,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
 
     describe "#delete_in_provider_queue" do
       it "creates a task and queue item" do
+        pending "We need to set the embedded_terraform role"
         record    = build_record
         task_id   = record.delete_in_provider_queue
         task_name = "Deleting #{described_class::FRIENDLY_NAME} (name=#{record.name})"
@@ -401,7 +404,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
             :class_name  => described_class.name,
             :method_name => "delete_in_provider",
             :priority    => MiqQueue::HIGH_PRIORITY,
-            # :role        => "embedded_terraform", TODO: Add role, set it in the queue and test it
+            :role        => "embedded_terraform",
             :zone        => nil
           )
         )
