@@ -12,16 +12,19 @@ module Terraform
 
       # @return [Boolean] true if the terraform stack job is still running, false when it's finished
       def running?
-        return (@response.status == "" || @response.status == "IN_PROGRESS") if @response
+        return false if @response && completed?(@response.status)
 
-        false
+        # re-fetch response
+        refresh_response
+
+        !completed?(@response.status)
       end
 
       # Stops the running Terraform job
       def stop
-        raise Error, "Not yet running" if !running?
+        raise "No job running to stop" if !running?
 
-        Terraform::Runner.stop_async(@response.stack_id)
+        Terraform::Runner.stop_async(@stack_id)
       end
 
       # Re-Fetch async job's response
@@ -31,13 +34,20 @@ module Terraform
         @response
       end
 
-      # @return [Terraform::Runner::Response, NilClass] Response object with all details about the Terraform run, or nil
+      # # @return [Terraform::Runner::Response, NilClass] Response object with all details about the Terraform run, or nil
+      # #         if the Terraform is still running
+      # def response
+      #   return if running?
+      #
+      #   @response
+      # end
+
+      # @return [Terraform::Runner::Response] Response object with all details about the Terraform run, or nil
       #         if the Terraform is still running
       def response
-        # return if running?
-        return @response if @response
-
-        @response = Terraform::Runner.fetch_result_by_stack_id(@stack_id)
+        if running?
+          _log.info("terraform-runner job [#{@stack_id}] is still running ...")
+        end
 
         @response
       end
@@ -59,6 +69,21 @@ module Terraform
       def self.load(hash)
         # Dump dumps a hash and load accepts a hash, so we must expand the hash to kwargs as new expects kwargs
         new(**hash)
+      end
+
+      private
+
+      def completed?(status)
+        # IF NOT SUCCESS,FAILED,CANCELLED
+        if status
+          return (
+            status.start_with?("SUCCESS", "FAILED") ||
+            # @response.status == "ERROR" ||
+            status == "CANCELLED"
+          )
+        end
+
+        false
       end
     end
   end

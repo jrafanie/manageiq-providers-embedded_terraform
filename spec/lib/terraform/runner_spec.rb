@@ -130,7 +130,10 @@ RSpec.describe(Terraform::Runner) do
 
       it "start running hello-world terraform template" do
         async_response = Terraform::Runner.run_async(input_vars, File.join(__dir__, "runner/data/hello-world"))
+        expect(create_stub).to(have_been_requested.times(1))
+
         response = async_response.response
+        expect(retrieve_stub).to(have_been_requested.times(1))
 
         expect(response.status).to(eq('IN_PROGRESS'), "terraform-runner failed with:\n#{response.status}")
         expect(response.stack_id).to(eq(@hello_world_create_response['stack_id']))
@@ -139,8 +142,6 @@ RSpec.describe(Terraform::Runner) do
         expect(response.message).to(be_nil)
         expect(response.details).to(be_nil)
 
-        expect(create_stub).to(have_been_requested.times(1))
-        expect(retrieve_stub).to(have_been_requested.times(1))
       end
     end
 
@@ -197,6 +198,7 @@ RSpec.describe(Terraform::Runner) do
                           :status => 200,
                           :body   => @hello_world_create_response.to_json
                         )
+                        .times(2)
                         .then
                         .to_return(
                           :status => 200,
@@ -214,7 +216,11 @@ RSpec.describe(Terraform::Runner) do
 
       it "start running, then stop the before it completes" do
         async_response = Terraform::Runner.run_async(input_vars, File.join(__dir__, "runner/data/hello-world"))
+        expect(create_stub).to(have_been_requested.times(1))
+        expect(retrieve_stub).to(have_been_requested.times(0))
+
         response = async_response.response
+        expect(retrieve_stub).to(have_been_requested.times(1))
 
         expect(response.status).to(eq('IN_PROGRESS'), "terraform-runner failed with:\n#{response.status}")
         expect(response.stack_id).to(eq(@hello_world_create_response['stack_id']))
@@ -223,19 +229,20 @@ RSpec.describe(Terraform::Runner) do
         expect(response.message).to(be_nil)
         expect(response.details).to(be_nil)
 
-        expect(create_stub).to(have_been_requested.times(1))
-        expect(retrieve_stub).to(have_been_requested.times(1))
-
-        # Stop the job terraform-runner
+        # Stop the job terraform-runneer
         async_response.stop
         expect(cancel_stub).to(have_been_requested.times(1))
-
-        # Re-fetch latest response
-        async_response.refresh_response
-        response = async_response.response
-
-        expect(response.status).to(eq('CANCELLED'), "terraform-runner failed with:\n#{response.status}")
         expect(retrieve_stub).to(have_been_requested.times(2))
+
+        # fetch latest response
+        response = async_response.response
+        expect(retrieve_stub).to(have_been_requested.times(3))
+        expect(response.status).to(eq('CANCELLED'), "terraform-runner failed with:\n#{response.status}")
+
+        # fetch latest response again, no more api calls
+        response = async_response.response
+        expect(retrieve_stub).to(have_been_requested.times(3))
+        expect(response.status).to(eq('CANCELLED'), "terraform-runner failed with:\n#{response.status}")
       end
     end
   end
