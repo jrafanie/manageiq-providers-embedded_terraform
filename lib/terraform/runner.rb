@@ -27,7 +27,7 @@ module Terraform
       #        terraform-runner run
       # @return [Terraform::Runner::ResponseAsync] Response object of terraform-runner create action
       def run_async(input_vars, template_path, tags: nil, credentials: [], env_vars: {})
-        _log.info("In run_aysnc with #{template_path}")
+        _log.debug("Run_aysnc template: #{template_path}")
         response = create_stack_job(
           template_path,
           :input_vars  => input_vars,
@@ -58,7 +58,7 @@ module Terraform
       #        terraform-runner run
       # @return [Terraform::Runner::Response] Response object with final result of terraform run
       def run(input_vars, template_path, tags: nil, credentials: [], env_vars: {})
-        _log.info("Run template: #{template_path}")
+        _log.debug("Run template: #{template_path}")
         create_stack_job_and_wait_until_completes(
           template_path,
           :input_vars  => input_vars,
@@ -146,7 +146,7 @@ module Terraform
         env_vars: {},
         name: "stack-#{rand(36**8).to_s(36)}"
       )
-        _log.info("create_stack_job for #{template_path}")
+        _log.info("start stack_job for template: #{template_path}")
         tenant_id = stack_tenant_id
 
         # Temp Zip File
@@ -169,12 +169,13 @@ module Terraform
         http_response = terraform_runner_client['api/stack/create'].post(
           payload, :content_type => 'application/json'
         )
-        _log.info("==== http_response.body: \n #{http_response.body}")
+        _log.debug("==== http_response.body: \n #{http_response.body}")
+        _log.info("stack_job for template: #{template_path} running ...")
         Terraform::Runner::Response.parsed_response(http_response)
       ensure
         # cleanup temp zip file
         FileUtils.rm_rf(zip_file_path) if zip_file_path
-        _log.info("Deleted #{zip_file_path}")
+        _log.debug("Deleted #{zip_file_path}")
       end
 
       # Retrieve TerraformRunner Stack Job details
@@ -212,10 +213,10 @@ module Terraform
 
         response = nil
         Timeout.timeout(max_time_in_secs) do
-          _log.info("Starting wait for terraform-runner/stack/#{stack_id} completes ...")
+          _log.debug("Starting wait for terraform-runner/stack/#{stack_id} completes ...")
           i = 0
           loop do
-            _log.info(i)
+            _log.debug("loop #{i}")
             i += 1
 
             response = retrieve_stack_job(stack_id)
@@ -224,28 +225,28 @@ module Terraform
 
             case response.status
             when "SUCCESS"
-              _log.info("Successful!")
+              _log.debug("Successful! (stack_job/:#{stack_id})")
               break
 
             when "FAILED"
-              _log.info("Failed!!")
+              _log.info("Failed! (stack_job/:#{stack_id} fails!)")
               _log.info(response.error_message)
               break
 
             when nil
-              _log.info("No status, must have failed, check response ...")
+              _log.info("No status! stack_job/:#{stack_id} must have failed, check response ...")
               _log.info(response.message)
               break
             end
-            _log.info("============\n #{response.message} \n============")
+            _log.info("============\n stack_job/:#{stack_id} status=#{response.status} \n============")
 
             # sleep interval
-            _log.info("Sleep for #{interval_in_secs} secs")
+            _log.debug("Sleep for #{interval_in_secs} secs")
             sleep interval_in_secs
 
             break unless i < 20
           end
-          _log.info("loop ends: ran #{i} times")
+          _log.debug("loop ends: ran #{i} times")
         end
         response
       end
@@ -276,11 +277,11 @@ module Terraform
         dir_path = template_path # directory to be zipped
         dir_path = path[0...-1] if dir_path.end_with?('/')
 
-        _log.info("Create #{zip_file_path}")
+        _log.debug("Create #{zip_file_path}")
         Zip::File.open(zip_file_path, Zip::File::CREATE) do |zipfile|
           Dir.chdir(dir_path)
           Dir.glob("**/*").reject { |fn| File.directory?(fn) }.each do |file|
-            _log.info("Adding #{file}")
+            _log.debug("Adding #{file}")
             zipfile.add(file.sub("#{dir_path}/", ''), file)
           end
         end
