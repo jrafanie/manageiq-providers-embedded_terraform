@@ -1,5 +1,3 @@
-FakeTerraformRepo = Spec::Support::FakeAnsibleRepo # TODO: replace FakeAnsibleRepo with FakeTerraformRepo
-
 RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::ConfigurationScriptSource do
   context "with a local repo" do
     let(:manager) do
@@ -22,7 +20,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
     before do
       FileUtils.mkdir_p(local_repo)
 
-      repo = FakeTerraformRepo.new(local_repo, repo_dir_structure)
+      repo = Spec::Support::FakeTerraformRepo.new(local_repo, repo_dir_structure)
       repo.generate
       repo.git_branch_create("other_branch")
       stub_const("GitRepository::GIT_REPO_DIRECTORY", repo_dir)
@@ -109,7 +107,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
         end
 
         it "finds all templates" do
-          FakeTerraformRepo.generate(nested_repo, nested_repo_structure)
+          Spec::Support::FakeTerraformRepo.generate(nested_repo, nested_repo_structure)
 
           params[:scm_url] = "file://#{nested_repo}"
           record           = build_record
@@ -137,7 +135,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
           existing_id     = record.configuration_script_payloads.first.id
 
           # create a new fake repo and associate it with our repo
-          FakeTerraformRepo.generate(nested_repo, nested_repo_structure)
+          Spec::Support::FakeTerraformRepo.generate(nested_repo, nested_repo_structure)
           record.update(:scm_url => "file://#{nested_repo}")
           record.sync
 
@@ -159,7 +157,7 @@ RSpec.describe ManageIQ::Providers::EmbeddedTerraform::AutomationManager::Config
         end
 
         it "finds all templates" do
-          FakeTerraformRepo.generate(multiple_templates_repo, multiple_templates_repo_structure)
+          Spec::Support::FakeTerraformRepo.generate(multiple_templates_repo, multiple_templates_repo_structure)
 
           params[:scm_url] = "file://#{multiple_templates_repo}"
           record           = build_record
