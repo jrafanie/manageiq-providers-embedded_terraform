@@ -83,12 +83,11 @@ module Terraform
       private
 
       def server_url
-        ENV['TERRAFORM_RUNNER_URL'] || 'https://localhost:27000'
+        ENV['TERRAFORM_RUNNER_URL'] || 'https://opentofu-runner:27000'
       end
 
       def server_token
-        # TODO: fix hardcoded token
-        ENV['TERRAFORM_RUNNER_TOKEN'] || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlNodWJoYW5naSBTaW5naCIsImlhdCI6MTcwNjAwMDk0M30.46mL8RRxfHI4yveZ2wTsHyF7s2BAiU84aruHBoz2JRQ'
+        ENV.fetch('TERRAFORM_RUNNER_TOKEN', nil)
       end
 
       def stack_job_interval_in_secs
